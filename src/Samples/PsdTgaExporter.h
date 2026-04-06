@@ -8,6 +8,7 @@
 
 namespace tgaExporter
 {
+	FILE* CreateFile(const wchar_t* filename);
 	/// Assumes 8-bit single-channel data.
 	void SaveMonochrome(const wchar_t* filename, unsigned int width, unsigned int height, const uint8_t* data);
 
@@ -16,4 +17,14 @@ namespace tgaExporter
 
 	/// Assumes 8-bit RGBA data.
 	void SaveRGBA(const wchar_t* filename, unsigned int width, unsigned int height, const uint8_t* data);
+
+	void SaveSvPngRGBA(const wchar_t* filename, unsigned int width, unsigned int height, const uint8_t* data);
+
+	void SaveSvPngRGB(const wchar_t* filename, unsigned int width, unsigned int height, const uint8_t* data);
+
+	void SavelibPngRGBA(const wchar_t* filename, unsigned int width, unsigned int height, const uint8_t* data);
+	void SavelibPngRGBA(const wchar_t* filename, unsigned int width, unsigned int height, const uint16_t* data);
+	void SavelibPngRGBA(const wchar_t* filename, unsigned int width, unsigned int height, const float32_t* data);
+
+	void SavelibPngRGB(const wchar_t* filename, unsigned int width, unsigned int height, const uint8_t* data);
 }

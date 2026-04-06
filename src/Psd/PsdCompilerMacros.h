@@ -150,3 +150,5 @@
 
 /// \def PSD_STATIC_ASSERT
 #define PSD_STATIC_ASSERT(condition)					static_assert((condition), "")
+
+#define _USE_MATH_DEFINES

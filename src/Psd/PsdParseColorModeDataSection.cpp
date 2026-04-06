@@ -7,6 +7,7 @@
 #include "PsdAllocator.h"
 #include "PsdAssert.h"
 #include "PsdColorModeDataSection.h"
+#include "PsdAllocator.h"
 #include "PsdDocument.h"
 #include "PsdMemoryUtil.h"
 #include "PsdSyncFileReader.h"
@@ -17,13 +18,15 @@ PSD_NAMESPACE_BEGIN
 
 // ---------------------------------------------------------------------------------------------------------------------
 // ---------------------------------------------------------------------------------------------------------------------
-ColorModeDataSection* ParseColorModeDataSection(const Document* document, File* file, Allocator* allocator)
+ColorModeDataSection* ParseColorModeDataSection(const Document& document, File* file, Allocator* allocator)
 {
-	PSD_ASSERT_NOT_NULL(document);
+	// not implemented yet.
+	// only indexed color and Duotone have color mode data, but both are not supported by this library at the moment.
+	// PSD_ASSERT_NOT_NULL(document);
 	PSD_ASSERT_NOT_NULL(file);
 	PSD_ASSERT_NOT_NULL(allocator);
 
-	const Section& section = document->colorModeDataSection;
+	const Section& section = document.colorModeDataSection;
 	if (section.length == 0u)
 	{
 		return nullptr;
@@ -33,7 +36,7 @@ ColorModeDataSection* ParseColorModeDataSection(const Document* document, File* 
 	*colorModeData = ColorModeDataSection();
 
 	SyncFileReader reader(file);
-	reader.SetPosition(document->colorModeDataSection.offset);
+	reader.SetPosition(document.colorModeDataSection.offset);
 
 	colorModeData->colorData = memoryUtil::AllocateArray<uint8_t>(allocator, section.length);
 	colorModeData->sizeOfColorData = section.length;
