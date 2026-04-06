@@ -2,7 +2,8 @@
 // See LICENSE.txt for licensing details (2-clause BSD License: https://opensource.org/licenses/BSD-2-Clause)
 
 #pragma once
-
+#include <stdio.h>
+#include "../Psd/Psd.h"
 #include "../Psd/Psdstdint.h"
 
 
@@ -27,4 +28,6 @@ namespace tgaExporter
 	void SavelibPngRGBA(const wchar_t* filename, unsigned int width, unsigned int height, const float32_t* data);
 
 	void SavelibPngRGB(const wchar_t* filename, unsigned int width, unsigned int height, const uint8_t* data);
+
+	void SaveMaskPNG(const wchar_t* filename, unsigned int width, unsigned int height, const uint8_t* mask);
 }

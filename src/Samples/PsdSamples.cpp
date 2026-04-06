@@ -37,6 +37,12 @@
 #include "PsdTgaExporter.h"
 #include "PsdDebug.h"
 
+#include "png.h"
+#include "zlib.h"
+#include<unzip.h>
+#include<iostream>
+
+
 PSD_PUSH_WARNING_LEVEL(0)
 	// disable annoying warning caused by xlocale(337): warning C4530: C++ exception handler used, but unwind semantics are not enabled. Specify /EHsc
 	#pragma warning(disable:4530)
@@ -242,7 +248,7 @@ int SampleReadPsd(void)
 	// try opening the file. if it fails, bail out.
 	if (!file.OpenRead(srcPath.c_str()))
 	{
-		PSD_SAMPLE_LOG("Cannot open file.\n");
+		OutputDebugStringA("Cannot open file.\n");
 		return 1;
 	}
 
@@ -251,7 +257,7 @@ int SampleReadPsd(void)
 	Document* document = CreateDocument(&file, &allocator);
 	if (!document)
 	{
-		PSD_SAMPLE_LOG("Cannot create document.\n");
+		OutputDebugStringA("Cannot create document.\n");
 		file.Close();
 		return 1;
 	}
@@ -259,7 +265,7 @@ int SampleReadPsd(void)
 	// the sample only supports RGB colormode
 	if (document->colorMode != colorMode::RGB)
 	{
-		PSD_SAMPLE_LOG("Document is not in RGB color mode.\n");
+		OutputDebugStringA("Document is not in RGB color mode.\n");
 		DestroyDocument(document, &allocator);
 		file.Close();
 		return 1;
@@ -269,9 +275,9 @@ int SampleReadPsd(void)
 	// this gives access to the ICC profile, EXIF data and XMP metadata.
 	{
 		ImageResourcesSection* imageResourcesSection = ParseImageResourcesSection(document, &file, &allocator);
-		PSD_SAMPLE_LOG("XMP metadata:\n");
-		PSD_SAMPLE_LOG(imageResourcesSection->xmpMetadata);
-		PSD_SAMPLE_LOG("\n");
+		OutputDebugStringA("XMP metadata:\n");
+		OutputDebugStringA(imageResourcesSection->xmpMetadata);
+		OutputDebugStringA("\n");
 		DestroyImageResourcesSection(imageResourcesSection, &allocator);
 	}
 
@@ -286,8 +292,17 @@ int SampleReadPsd(void)
 		for (unsigned int i = 0; i < layerMaskSection->layerCount; ++i)
 		{
 			Layer* layer = &layerMaskSection->layers[i];
+			// 提取层级
 			ExtractLayer(document, &file, &allocator, layer);
 
+			std::string isVisible = layer->isVisible ? "true" : "false";
+			unsigned int type =  layer->type; 
+			if (type == 3) {
+			
+				std::cout << "可视性 ";
+			}
+			std::cout << "可视性 " << isVisible << " 名称 "<<layer->name.c_str() << std::endl;
+			std::cout << "type "<<type  << std::endl;
 			// check availability of R, G, B, and A channels.
 			// we need to determine the indices of channels individually, because there is no guarantee that R is the first channel,
 			// G is the second, B is the third, and so on.
@@ -366,7 +381,7 @@ int SampleReadPsd(void)
 			{
 				#ifdef _WIN32
 				//In Windows wchar_t is utf16
-				PSD_STATIC_ASSERT(sizeof(wchar_t) == sizeof(uint16_t));
+				// static_assert(sizeof(wchar_t) == sizeof(uint16_t));
 				layerName << reinterpret_cast<wchar_t*>(layer->utf16Name);
 				#else
 				//In Linux, wchar_t is utf32
@@ -387,7 +402,7 @@ int SampleReadPsd(void)
 				{
 					return ((high << 10) + low - 0x35fdc00);
 				};
-				PSD_STATIC_ASSERT(sizeof(wchar_t) == sizeof(uint32_t));
+				static_assert(sizeof(wchar_t) == sizeof(uint32_t));
 
 				//Begin convert
 				size_t u16len = 0;
@@ -448,7 +463,25 @@ int SampleReadPsd(void)
 					filename << layerName.str();
 					filename << L".tga";
 					tgaExporter::SaveRGBA(filename.str().c_str(), document->width, document->height, image8);
+					filename << L".png";
+					tgaExporter::SavelibPngRGBA(filename.str().c_str(), document->width, document->height, image8);
 				}
+			}
+			std::wstringstream filename;
+			filename << GetSampleOutputPath();
+			filename << layerName.str();
+			filename << L".png";
+			if (image16)
+			{
+				tgaExporter::SavelibPngRGBA(filename.str().c_str(), document->width, document->height, image16);
+			}
+			else if (image8)
+			{
+				tgaExporter::SavelibPngRGBA(filename.str().c_str(), document->width, document->height, image8);
+			}
+			else if (image32)
+			{
+				tgaExporter::SavelibPngRGBA(filename.str().c_str(), document->width, document->height, image32);
 			}
 
 			allocator.Free(image8);
@@ -457,6 +490,7 @@ int SampleReadPsd(void)
 
 			// in addition to the layer data, we also want to extract the user and/or vector mask.
 			// luckily, this has been handled already by the ExtractLayer() function. we just need to check whether a mask exists.
+			// 图层蒙版
 			if (layer->layerMask)
 			{
 				// a layer mask exists, and data is available. work out the mask's dimensions.
@@ -467,18 +501,24 @@ int SampleReadPsd(void)
 				// the mask data is always single-channel (monochrome), and has a width and height as calculated above.
 				void* maskData = layer->layerMask->data;
 				{
-					std::wstringstream filename;
+					//std::wstringstream filename;
+					filename.str(L"");
+					filename.clear();
 					filename << GetSampleOutputPath();
 					filename << L"layer";
 					filename << layerName.str();
 					filename << L"_usermask.tga";
 					tgaExporter::SaveMonochrome(filename.str().c_str(), width, height, static_cast<const uint8_t*>(maskData));
+					filename << L".png";
+					// 单通道类型
+					tgaExporter::SaveMaskPNG(filename.str().c_str(), width, height, static_cast<const uint8_t*>(maskData));
 				}
 
 				// use ExpandMaskToCanvas create an image that is the same size as the canvas.
 				void* maskCanvasData = ExpandMaskToCanvas(document, &allocator, layer->layerMask);
 				{
-					std::wstringstream filename;
+					filename.str(L"");
+					filename.clear();
 					filename << GetSampleOutputPath();
 					filename << L"canvas";
 					filename << layerName.str();
@@ -488,7 +528,7 @@ int SampleReadPsd(void)
 
 				allocator.Free(maskCanvasData);
 			}
-
+			// 矢量遮罩
 			if (layer->vectorMask)
 			{
 				// accessing the vector mask works exactly like accessing the layer mask.
@@ -497,7 +537,8 @@ int SampleReadPsd(void)
 
 				void* maskData = layer->vectorMask->data;
 				{
-					std::wstringstream filename;
+					filename.str(L"");
+					filename.clear();
 					filename << GetSampleOutputPath();
 					filename << L"layer";
 					filename << layerName.str();
@@ -507,12 +548,15 @@ int SampleReadPsd(void)
 
 				void* maskCanvasData = ExpandMaskToCanvas(document, &allocator, layer->vectorMask);
 				{
-					std::wstringstream filename;
+					filename.str(L"");
+					filename.clear();
 					filename << GetSampleOutputPath();
 					filename << L"canvas";
 					filename << layerName.str();
 					filename << L"_vectormask.tga";
 					tgaExporter::SaveMonochrome(filename.str().c_str(), document->width, document->height, static_cast<const uint8_t*>(maskCanvasData));
+					
+					tgaExporter::SavelibPngRGBA(filename.str().c_str(), document->width, document->height, static_cast<const uint8_t*>(maskCanvasData));
 				}
 
 				allocator.Free(maskCanvasData);
@@ -524,8 +568,9 @@ int SampleReadPsd(void)
 
 	// extract the image data section, if available. the image data section stores the final, merged image, as well as additional
 	// alpha channels. this is only available when saving the document with "Maximize Compatibility" turned on.
+	// 相当于拍照全部都一起输出出来
 	if (document->imageDataSection.length != 0)
-	{
+	{                                 // 解析img数据部分
 		ImageDataSection* imageData = ParseImageDataSection(document, &file, &allocator);
 		if (imageData)
 		{
@@ -602,11 +647,38 @@ int SampleReadPsd(void)
 				filename << L"merged.tga";
 				if (isRgb)
 				{
-					tgaExporter::SaveRGB(filename.str().c_str(), document->width, document->height, image8);
+					std::cout << document->width << " height: " << document->height << std::endl;
+					//tgaExporter::SaveRGB(filename.str().c_str(), document->width, document->height, image8);
+					
+					filename << L".png";
+
+					for (unsigned int y = 0; y < document->height; y++) {
+
+						for (unsigned int x = 0; x < document->width; x++) {
+
+							unsigned char a = '\0';
+							uint8_t b;
+
+							b = (int)(image8[y * x + 0]);
+							if (b != a) {
+								std::cout << b;
+							}
+							std::cout << b;
+							//std::cout << image8[y * x + 1];
+							//std::cout << image8[y * x + 2];
+						}
+						std::cout << std::endl;
+					}
+					tgaExporter::SavelibPngRGB(filename.str().c_str(), document->width, document->height, image8);
 				}
 				else
 				{
 					tgaExporter::SaveRGBA(filename.str().c_str(), document->width, document->height, image8);
+
+					filename << L"合照.png";
+					// 集体合照  全部图层的合照
+					tgaExporter::SavelibPngRGBA(filename.str().c_str(), document->width, document->height, image8);
+
 				}
 			}
 
@@ -669,7 +741,7 @@ int SampleWritePsd(void)
 		// try opening the file. if it fails, bail out.
 		if (!file.OpenWrite(dstPath.c_str()))
 		{
-			PSD_SAMPLE_LOG("Cannot open file.\n");
+			OutputDebugStringA("Cannot open file.\n");
 			return 1;
 		}
 
@@ -749,7 +821,7 @@ int SampleWritePsd(void)
 		// try opening the file. if it fails, bail out.
 		if (!file.OpenWrite(dstPath.c_str()))
 		{
-			PSD_SAMPLE_LOG("Cannot open file.\n");
+			OutputDebugStringA("Cannot open file.\n");
 			return 1;
 		}
 
@@ -787,7 +859,7 @@ int SampleWritePsd(void)
 		// try opening the file. if it fails, bail out.
 		if (!file.OpenWrite(dstPath.c_str()))
 		{
-			PSD_SAMPLE_LOG("Cannot open file.\n");
+			OutputDebugStringA("Cannot open file.\n");
 			return 1;
 		}
 
@@ -826,6 +898,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 int main(int /*argc*/, const char * /*argv[]*/)
 #endif
 {
+	AllocConsole();  //create console
+	SetConsoleTitle("SHMRenderDebugConsole"); //set console title   
+	FILE* tempFile = nullptr;
+	freopen_s(&tempFile, "conin$", "r+t", stdin); //reopen the stdin, we can use std::cout.
+	freopen_s(&tempFile, "conout$", "w+t", stdout);
+	//std::cout << "dddddd" << std::endl;  //print ddd to console window
+	
 	{
 		const int result = SampleReadPsd();
 		if (result != 0)
